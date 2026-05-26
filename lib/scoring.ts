@@ -21,19 +21,13 @@ export function personalPar(coursePar: number, handicap: number): number {
   return coursePar + handicap;
 }
 
-/** Individual max strokes per hole = PP + 3. */
-export function maxStrokesIndividual(pp: number): number {
-  return pp + 3;
-}
-
-/** Scramble team personal par = ceil((pp1 + pp2) / 2). */
-export function teamPersonalPar(pp1: number, pp2: number): number {
-  return Math.ceil((pp1 + pp2) / 2);
-}
-
-/** Scramble max strokes per hole = team PP + 2. */
-export function maxStrokesScramble(teamPP: number): number {
-  return teamPP + 2;
+/**
+ * Scramble team personal par = ceil(average of members' personal pars).
+ * For the standard 2-player team this is ceil((pp1 + pp2) / 2).
+ */
+export function teamPersonalPar(pps: number[]): number {
+  if (pps.length === 0) return 0;
+  return Math.ceil(pps.reduce((a, b) => a + b, 0) / pps.length);
 }
 
 // ---------------------------------------------------------------------------
@@ -69,12 +63,11 @@ export function classify(diff: number): HoleClassification {
 export interface ScoredHole {
   /** Personal par (individual) or team personal par (scramble). */
   pp: number;
-  maxStrokes: number;
-  /** Strokes capped at maxStrokes for display; null if not entered. */
-  effectiveStrokes: number | null;
+  /** Strokes as entered (no upper cap); null if not entered. */
+  strokes: number | null;
   points: number;
   classification: HoleClassification;
-  /** Whether a score (or pickup) has been recorded for this hole. */
+  /** Whether a score has been recorded for this hole. */
   entered: boolean;
 }
 
@@ -94,42 +87,24 @@ export function pointsForClassification(c: HoleClassification): number {
 }
 
 /**
- * Core hole scorer. Given personal par and the max-strokes cap, returns the
- * Stableford outcome. Picking up = 0 points with strokes shown at the cap.
+ * Core hole scorer. Strokes are recorded exactly as entered — there is no
+ * upper cap. The Stableford floor still applies: 2+ over personal par scores 0.
  * An un-entered hole returns `none`/0 and `entered: false`.
  */
-export function scoreHole(
-  pp: number,
-  maxStrokes: number,
-  strokes: number | null,
-  pickedUp: boolean,
-): ScoredHole {
-  if (pickedUp) {
-    return {
-      pp,
-      maxStrokes,
-      effectiveStrokes: maxStrokes,
-      points: 0,
-      classification: "other",
-      entered: true,
-    };
-  }
+export function scoreHole(pp: number, strokes: number | null): ScoredHole {
   if (strokes === null) {
     return {
       pp,
-      maxStrokes,
-      effectiveStrokes: null,
+      strokes: null,
       points: 0,
       classification: "none",
       entered: false,
     };
   }
-  const effectiveStrokes = Math.min(strokes, maxStrokes);
-  const classification = classify(effectiveStrokes - pp);
+  const classification = classify(strokes - pp);
   return {
     pp,
-    maxStrokes,
-    effectiveStrokes,
+    strokes,
     points: pointsForClassification(classification),
     classification,
     entered: true,
@@ -140,24 +115,19 @@ export function scoreIndividualHole(
   coursePar: number,
   handicap: number,
   strokes: number | null,
-  pickedUp: boolean,
 ): ScoredHole {
-  const pp = personalPar(coursePar, handicap);
-  return scoreHole(pp, maxStrokesIndividual(pp), strokes, pickedUp);
+  return scoreHole(personalPar(coursePar, handicap), strokes);
 }
 
 export function scoreScrambleHole(
   coursePar: number,
-  handicap1: number,
-  handicap2: number,
+  handicaps: number[],
   strokes: number | null,
-  pickedUp: boolean,
 ): ScoredHole {
   const teamPP = teamPersonalPar(
-    personalPar(coursePar, handicap1),
-    personalPar(coursePar, handicap2),
+    handicaps.map((h) => personalPar(coursePar, h)),
   );
-  return scoreHole(teamPP, maxStrokesScramble(teamPP), strokes, pickedUp);
+  return scoreHole(teamPP, strokes);
 }
 
 // ---------------------------------------------------------------------------
@@ -183,29 +153,16 @@ export function scorePlayerHoles(
   ps: PlayerRoundScore,
 ): ScoredHole[] {
   return ps.holeScores.map((hs) =>
-    scoreIndividualHole(
-      round.pars[hs.hole - 1],
-      ps.handicap,
-      hs.strokes,
-      hs.pickedUp,
-    ),
+    scoreIndividualHole(round.pars[hs.hole - 1], ps.handicap, hs.strokes),
   );
 }
 
-export function scoreTeamHoles(
-  round: Round,
-  ts: TeamRoundScore,
-): ScoredHole[] {
+export function scoreTeamHoles(round: Round, ts: TeamRoundScore): ScoredHole[] {
   const team = round.teams?.find((t) => t.id === ts.teamId);
-  const [p1, p2] = team?.playerIds ?? [];
+  const playerIds = team?.playerIds ?? [];
+  const handicaps = playerIds.map((pid) => ts.handicaps[pid] ?? 0);
   return ts.holeScores.map((hs) =>
-    scoreScrambleHole(
-      round.pars[hs.hole - 1],
-      ts.handicaps[p1] ?? 0,
-      ts.handicaps[p2] ?? 0,
-      hs.strokes,
-      hs.pickedUp,
-    ),
+    scoreScrambleHole(round.pars[hs.hole - 1], handicaps, hs.strokes),
   );
 }
 

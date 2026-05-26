@@ -32,10 +32,8 @@ export type NineSelection = "front" | "back";
 export interface HoleScore {
   /** 1-9 as displayed in the UI. */
   hole: number;
-  /** Raw strokes taken. null = not yet entered. */
+  /** Raw strokes taken, recorded as entered (uncapped). null = not entered. */
   strokes: number | null;
-  /** True if the player/team picked up (capped, 0 points). */
-  pickedUp: boolean;
   /** Scramble only: was the kid's drive used on this hole? */
   kidDriveUsed?: boolean;
 }
@@ -71,7 +69,9 @@ export interface Round {
   completed: boolean;
   /** Course pars for the 9 holes actually played, in display order 1-9. */
   pars: number[];
-  /** Individual / championship scoring. */
+  /** Players who actually participated in this round. */
+  playerIds: string[];
+  /** Individual / championship scoring (only participating players). */
   playerScores: PlayerRoundScore[];
   /** Scramble only. */
   teams?: ScrambleTeam[];

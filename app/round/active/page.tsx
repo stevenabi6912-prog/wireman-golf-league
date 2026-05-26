@@ -76,16 +76,11 @@ export default function ActiveRoundPage() {
   const inc = (hs: HoleScore): HoleScore => ({
     ...hs,
     strokes: (hs.strokes ?? 0) + 1,
-    pickedUp: false,
   });
   const dec = (hs: HoleScore): HoleScore => {
     const next = (hs.strokes ?? 0) - 1;
-    return { ...hs, strokes: next < 1 ? null : next, pickedUp: false };
+    return { ...hs, strokes: next < 1 ? null : next };
   };
-  const togglePickup = (hs: HoleScore): HoleScore => ({
-    ...hs,
-    pickedUp: !hs.pickedUp,
-  });
 
   // ---- finish flow --------------------------------------------------------
   const missing = unscoredHoles(round);
@@ -162,18 +157,16 @@ export default function ActiveRoundPage() {
         {isScramble
           ? (round.teamScores ?? []).map((ts) => {
               const team = round.teams?.find((t) => t.id === ts.teamId);
-              const [p1, p2] = team?.playerIds ?? [];
-              const names = (team?.playerIds ?? [])
+              const teamPlayerIds = team?.playerIds ?? [];
+              const names = teamPlayerIds
                 .map((id) => season.players.find((p) => p.id === id)?.name)
                 .filter(Boolean)
                 .join(" & ");
               const hs = ts.holeScores[hole - 1];
               const scored = scoreScrambleHole(
                 par,
-                ts.handicaps[p1] ?? 0,
-                ts.handicaps[p2] ?? 0,
+                teamPlayerIds.map((id) => ts.handicaps[id] ?? 0),
                 hs.strokes,
-                hs.pickedUp,
               );
               const kidCount = kidDriveCount(ts);
               const kidOnTeam = (team?.playerIds ?? []).some((id) =>
@@ -185,13 +178,10 @@ export default function ActiveRoundPage() {
                     title={`${teamName(ts)}`}
                     subtitle={names}
                     pp={scored.pp}
-                    maxStrokes={scored.maxStrokes}
                     strokes={hs.strokes}
-                    pickedUp={hs.pickedUp}
                     scored={scored}
                     onIncrement={() => editTeamHole(ts.teamId, inc)}
                     onDecrement={() => editTeamHole(ts.teamId, dec)}
-                    onTogglePickup={() => editTeamHole(ts.teamId, togglePickup)}
                   />
                   {kidOnTeam && (
                     <label className="surface-2 mt-1 flex items-center justify-between rounded-xl px-4 py-3">
@@ -229,27 +219,17 @@ export default function ActiveRoundPage() {
           : round.playerScores.map((ps) => {
               const player = season.players.find((p) => p.id === ps.playerId)!;
               const hs = ps.holeScores[hole - 1];
-              const scored = scoreIndividualHole(
-                par,
-                ps.handicap,
-                hs.strokes,
-                hs.pickedUp,
-              );
+              const scored = scoreIndividualHole(par, ps.handicap, hs.strokes);
               return (
                 <ScoreStepper
                   key={ps.playerId}
                   title={player.name}
                   subtitle={player.tees[holeType]}
                   pp={scored.pp}
-                  maxStrokes={scored.maxStrokes}
                   strokes={hs.strokes}
-                  pickedUp={hs.pickedUp}
                   scored={scored}
                   onIncrement={() => editPlayerHole(ps.playerId, inc)}
                   onDecrement={() => editPlayerHole(ps.playerId, dec)}
-                  onTogglePickup={() =>
-                    editPlayerHole(ps.playerId, togglePickup)
-                  }
                 />
               );
             })}

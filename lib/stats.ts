@@ -17,12 +17,9 @@ export function completedRounds(season: SeasonData): Round[] {
     .sort((a, b) => a.roundNumber - b.roundNumber);
 }
 
-/** Did the player take part in this round (has a score record)? */
+/** Did the player take part in this round? */
 export function playerInRound(round: Round, playerId: string): boolean {
-  if (round.format === "scramble") {
-    return Boolean(round.teams?.some((t) => t.playerIds.includes(playerId)));
-  }
-  return round.playerScores.some((p) => p.playerId === playerId);
+  return round.playerIds.includes(playerId);
 }
 
 export interface StandingsRow {

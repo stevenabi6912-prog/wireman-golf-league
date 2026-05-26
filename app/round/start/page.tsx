@@ -10,6 +10,7 @@ import { TOTAL_ROUNDS, nextRoundNumber, standings } from "@/lib/stats";
 import type { NineSelection, RoundFormat, ScrambleTeam } from "@/lib/types";
 
 const NUM_TEAMS = 3;
+const TEAM_COLORS = ["#14532D", "#B45309", "#1E3A5F"];
 
 export default function StartRoundPage() {
   const router = useRouter();
@@ -20,16 +21,15 @@ export default function StartRoundPage() {
   const [formatTouched, setFormatTouched] = useState(false);
   const [nine, setNine] = useState<NineSelection>("front");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Absent key = selected. Only deselected players are stored as `false`.
+  const [deselected, setDeselected] = useState<Record<string, boolean>>({});
   const [assignment, setAssignment] = useState<Record<string, number>>({});
 
-  // Initialise round number to the next uncompleted round once loaded.
   useEffect(() => {
     if (!season) return;
-    const next = nextRoundNumber(season) ?? TOTAL_ROUNDS;
-    setRoundNumber(next);
+    setRoundNumber(nextRoundNumber(season) ?? TOTAL_ROUNDS);
   }, [season]);
 
-  // Keep format synced to the round number unless the user overrode it.
   useEffect(() => {
     if (!formatTouched) setFormat(defaultFormatForRound(roundNumber));
   }, [roundNumber, formatTouched]);
@@ -42,16 +42,36 @@ export default function StartRoundPage() {
 
   if (loading || !season) return <Loading />;
 
+  const isSelected = (id: string) => deselected[id] !== true;
+  const selectedPlayers = orderedPlayers.filter((p) => isSelected(p.id));
+  const selectedIds = selectedPlayers.map((p) => p.id);
   const isScramble = format === "scramble";
+
   const teamCounts = Array.from({ length: NUM_TEAMS }, (_, t) =>
-    Object.values(assignment).filter((v) => v === t).length,
+    selectedIds.filter((id) => assignment[id] === t).length,
   );
+  const allAssigned = selectedIds.every((id) => assignment[id] !== undefined);
   const teamsValid =
-    Object.keys(assignment).length === season.players.length &&
-    teamCounts.every((c) => c === 2);
+    selectedIds.length >= 1 &&
+    allAssigned &&
+    teamCounts.every((c) => c <= 2);
+
+  const scrambleUndersized = isScramble && selectedIds.length < 4;
+  const canBegin =
+    selectedIds.length >= 1 && (!isScramble || teamsValid);
+
+  function toggleSelect(id: string) {
+    setDeselected((prev) => ({ ...prev, [id]: !prev[id] ? true : false }));
+    // Drop any team assignment for a player being removed.
+    setAssignment((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+  }
 
   function drawRandom() {
-    const teams = randomTeams(season!.players);
+    const teams = randomTeams(selectedPlayers);
     const next: Record<string, number> = {};
     teams.forEach((team, idx) => {
       team.playerIds.forEach((pid) => {
@@ -74,17 +94,17 @@ export default function StartRoundPage() {
   }
 
   function begin() {
+    if (!canBegin) return;
     let teams: ScrambleTeam[] | undefined;
     if (isScramble) {
-      if (!teamsValid) return;
       teams = Array.from({ length: NUM_TEAMS }, (_, t) => ({
         id: `team-${t + 1}`,
-        playerIds: orderedPlayers
+        playerIds: selectedPlayers
           .filter((p) => assignment[p.id] === t)
           .map((p) => p.id),
-      }));
+      })).filter((t) => t.playerIds.length > 0);
     }
-    startRound({ roundNumber, date, nine, format, teams });
+    startRound({ roundNumber, date, nine, format, playerIds: selectedIds, teams });
     router.push("/round/active");
   }
 
@@ -106,9 +126,7 @@ export default function StartRoundPage() {
           </span>
           <button
             className="btn btn-outline h-11 w-11 text-xl"
-            onClick={() =>
-              setRoundNumber((n) => Math.min(TOTAL_ROUNDS, n + 1))
-            }
+            onClick={() => setRoundNumber((n) => Math.min(TOTAL_ROUNDS, n + 1))}
           >
             +
           </button>
@@ -142,11 +160,7 @@ export default function StartRoundPage() {
       {/* Format */}
       <Field
         label="Format"
-        hint={
-          formatTouched
-            ? "Overridden"
-            : `Auto from round ${roundNumber}`
-        }
+        hint={formatTouched ? "Overridden" : `Auto from round ${roundNumber}`}
       >
         <Segmented
           options={[
@@ -171,14 +185,60 @@ export default function StartRoundPage() {
         )}
       </Field>
 
+      {/* Players in this round */}
+      <Field
+        label="Players in this round"
+        hint={`${selectedIds.length} selected`}
+      >
+        <div className="space-y-2">
+          {orderedPlayers.map((p) => {
+            const on = isSelected(p.id);
+            return (
+              <button
+                key={p.id}
+                onClick={() => toggleSelect(p.id)}
+                className="card flex w-full items-center justify-between py-3 text-left"
+                aria-pressed={on}
+              >
+                <span className="font-semibold">{p.name}</span>
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-sm font-bold"
+                  style={
+                    on
+                      ? { backgroundColor: "var(--forest)", color: "#fff" }
+                      : {
+                          border: "2px solid var(--border)",
+                          color: "transparent",
+                        }
+                  }
+                >
+                  ✓
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {selectedIds.length === 0 && (
+          <p className="mt-2 text-xs" style={{ color: "var(--gold)" }}>
+            Select at least one player to begin.
+          </p>
+        )}
+      </Field>
+
       {/* Scramble teams */}
       {isScramble && (
         <Field label="Teams" hint="Tap a player to cycle their team">
           <button className="btn btn-navy mb-3 w-full" onClick={drawRandom}>
             {roundNumber === 8 ? "Auto-fill teams" : "Random team draw"}
           </button>
+          {scrambleUndersized && (
+            <p className="mb-2 text-xs" style={{ color: "var(--gold)" }}>
+              Scrambles work best with at least 2 teams of 2. You can still
+              proceed.
+            </p>
+          )}
           <div className="space-y-2">
-            {orderedPlayers.map((p, idx) => {
+            {selectedPlayers.map((p, idx) => {
               const team = assignment[p.id];
               return (
                 <button
@@ -207,9 +267,9 @@ export default function StartRoundPage() {
               );
             })}
           </div>
-          {!teamsValid && (
+          {!teamsValid && selectedIds.length > 0 && (
             <p className="mt-2 text-xs" style={{ color: "var(--gold)" }}>
-              Assign all players into {NUM_TEAMS} teams of 2.
+              Assign every selected player to a team (max 2 per team).
             </p>
           )}
         </Field>
@@ -217,8 +277,8 @@ export default function StartRoundPage() {
 
       <button
         className="btn btn-primary mt-4 w-full py-4 text-lg"
-        disabled={isScramble && !teamsValid}
-        style={isScramble && !teamsValid ? { opacity: 0.5 } : undefined}
+        disabled={!canBegin}
+        style={!canBegin ? { opacity: 0.5 } : undefined}
         onClick={begin}
       >
         Begin
@@ -226,8 +286,6 @@ export default function StartRoundPage() {
     </div>
   );
 }
-
-const TEAM_COLORS = ["#14532D", "#B45309", "#1E3A5F"];
 
 function Field({
   label,

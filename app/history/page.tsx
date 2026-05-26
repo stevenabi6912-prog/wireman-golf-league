@@ -10,11 +10,7 @@ import type { Round, SeasonData } from "@/lib/types";
 function topFinisher(season: SeasonData, round: Round) {
   let best: { name: string; pts: number } | null = null;
   for (const player of season.players) {
-    const inRound =
-      round.format === "scramble"
-        ? round.teams?.some((t) => t.playerIds.includes(player.id))
-        : round.playerScores.some((p) => p.playerId === player.id);
-    if (!inRound) continue;
+    if (!round.playerIds.includes(player.id)) continue;
     const pts = playerRawRoundPoints(round, player.id);
     if (!best || pts > best.pts) best = { name: player.name, pts };
   }
@@ -51,7 +47,9 @@ export default function HistoryPage() {
                   <div>
                     <p className="font-bold">Round {r.roundNumber}</p>
                     <p className="text-sm text-muted">
-                      {r.date} · {r.nine === "front" ? "Front 9" : "Back 9"}
+                      {r.date} · {r.nine === "front" ? "Front 9" : "Back 9"} ·{" "}
+                      {r.playerIds.length} player
+                      {r.playerIds.length === 1 ? "" : "s"}
                     </p>
                   </div>
                   <div className="text-right">

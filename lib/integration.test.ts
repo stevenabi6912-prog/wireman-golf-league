@@ -9,6 +9,8 @@ import {
 } from "./stats";
 import type { HoleScore, Round, SeasonData } from "./types";
 
+const ALL_IDS = ["dad", "mom", "luke", "layla", "logan", "lazarus"];
+
 /** A seeded season with every hole flattened to par 4, so these tests
  *  exercise scoring logic independent of the real Ella Sharp Park pars. */
 function seasonAllPar4(): SeasonData {
@@ -41,6 +43,7 @@ describe("full individual round loop", () => {
       date: "2026-05-01",
       nine: "front",
       format: "individual",
+      playerIds: ALL_IDS,
     });
 
     // Dad (hcp 0, PP 4): par every hole -> 18 pts.
@@ -81,6 +84,7 @@ describe("flagging skipped holes", () => {
       date: "2026-05-08",
       nine: "back",
       format: "individual",
+      playerIds: ALL_IDS,
     });
     fillPlayer(round, "dad", 4);
     // Leave dad's hole 5 unscored.
@@ -112,6 +116,7 @@ describe("scramble round loop", () => {
       date: "2026-06-01",
       nine: "front",
       format: "scramble",
+      playerIds: ALL_IDS,
       teams,
     });
 
@@ -150,6 +155,7 @@ describe("championship doubling in season totals", () => {
       date: "2026-08-01",
       nine: "front",
       format: "championship",
+      playerIds: ["dad"],
     });
     fillPlayer(round, "dad", 4); // par every hole, raw 18
     season.rounds = [complete(round)];
@@ -170,6 +176,7 @@ describe("handicap review across three rounds", () => {
         date: `2026-05-0${n}`,
         nine: "front",
         format: "individual",
+        playerIds: ALL_IDS,
       });
       season.players.forEach((p) =>
         fillPlayer(round, p.id, p.id === "lazarus" ? 20 : 4 + p.handicap),
@@ -198,5 +205,78 @@ describe("random team draw", () => {
     expect(all).toEqual(
       season.players.map((p) => p.id).sort(),
     );
+  });
+});
+
+describe("per-round player selection", () => {
+  it("only creates score rows for selected players and only credits them", () => {
+    const season = seasonAllPar4();
+    const round = createRound(season, {
+      roundNumber: 1,
+      date: "2026-05-01",
+      nine: "front",
+      format: "individual",
+      playerIds: ["dad", "logan", "lazarus"],
+    });
+
+    expect(round.playerIds.sort()).toEqual(["dad", "lazarus", "logan"]);
+    expect(round.playerScores.map((ps) => ps.playerId).sort()).toEqual([
+      "dad",
+      "lazarus",
+      "logan",
+    ]);
+
+    fillPlayer(round, "dad", 4); // par -> 18
+    fillPlayer(round, "logan", 7); // PP7 par -> 18
+    fillPlayer(round, "lazarus", 8); // PP8 par -> 18
+    season.rounds = [complete(round)];
+
+    const table = standings(season);
+    const mom = table.find((r) => r.player.id === "mom")!;
+    expect(mom.roundsPlayed).toBe(0);
+    expect(mom.totalPoints).toBe(0);
+
+    const dad = table.find((r) => r.player.id === "dad")!;
+    expect(dad.roundsPlayed).toBe(1);
+    expect(dad.totalPoints).toBe(18);
+  });
+
+  it("averages over rounds played, not total season rounds", () => {
+    const season = seasonAllPar4();
+    const mk = (n: number, ids: string[]) => {
+      const r = createRound(season, {
+        roundNumber: n,
+        date: `2026-05-0${n}`,
+        nine: "front",
+        format: "individual",
+        playerIds: ids,
+      });
+      ids.forEach((id) => fillPlayer(r, id, 4)); // everyone pars -> 18
+      return complete(r);
+    };
+    // Dad plays rounds 1 and 2 but sits out round 3.
+    season.rounds = [
+      mk(1, ["dad", "mom"]),
+      mk(2, ["dad", "mom"]),
+      mk(3, ["mom"]),
+    ];
+
+    const dad = standings(season).find((r) => r.player.id === "dad")!;
+    expect(dad.roundsPlayed).toBe(2);
+    expect(dad.totalPoints).toBe(36);
+    expect(dad.avgPerRound).toBe(18); // 36 / 2, not 36 / 3
+  });
+
+  it("rejects starting a round with no players", () => {
+    const season = seasonAllPar4();
+    expect(() =>
+      createRound(season, {
+        roundNumber: 1,
+        date: "2026-05-01",
+        nine: "front",
+        format: "individual",
+        playerIds: [],
+      }),
+    ).toThrow();
   });
 });
