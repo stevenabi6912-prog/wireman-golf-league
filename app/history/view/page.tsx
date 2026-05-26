@@ -1,19 +1,20 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import RoundScorecard from "@/components/RoundScorecard";
 import { EmptyState, Loading, PageHeader } from "@/components/ui";
 import { useSeason } from "@/lib/season-context";
 import { formatRoundLabel } from "@/lib/stats";
 
-export default function RoundDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+function RoundDetail() {
+  const params = useSearchParams();
+  const id = params.get("id");
   const { season, loading } = useSeason();
+
   if (loading || !season) return <Loading />;
 
-  const round = season.rounds.find((r) => r.id === params.id);
+  const round = season.rounds.find((r) => r.id === id);
   if (!round) {
     return (
       <div>
@@ -37,5 +38,13 @@ export default function RoundDetailPage({
       />
       <RoundScorecard season={season} round={round} />
     </div>
+  );
+}
+
+export default function RoundDetailPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <RoundDetail />
+    </Suspense>
   );
 }

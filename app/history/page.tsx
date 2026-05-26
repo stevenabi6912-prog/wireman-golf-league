@@ -46,7 +46,7 @@ export default function HistoryPage() {
                   ? "Championship"
                   : "Individual";
             return (
-              <Link key={r.id} href={`/history/${r.id}`} className="card block">
+              <Link key={r.id} href={`/history/view?id=${r.id}`} className="card block">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold">Round {r.roundNumber}</p>
