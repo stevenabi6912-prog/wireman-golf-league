@@ -45,7 +45,7 @@ function HoleStrip({ scored }: { scored: ScoredHole[] }) {
                   : "none",
             }}
           >
-            {h.effectiveStrokes ?? "–"}
+            {h.strokes ?? "–"}
           </div>
         </div>
       ))}

@@ -27,7 +27,6 @@ function emptyHoleScores(scramble: boolean): HoleScore[] {
   return Array.from({ length: 9 }, (_, i) => ({
     hole: i + 1,
     strokes: null,
-    pickedUp: false,
     ...(scramble ? { kidDriveUsed: false } : {}),
   }));
 }
@@ -37,24 +36,36 @@ export interface CreateRoundInput {
   date: string;
   nine: NineSelection;
   format: RoundFormat;
+  /** Participating players. For scramble this is derived from `teams`. */
+  playerIds: string[];
   /** Required for scramble rounds. */
   teams?: ScrambleTeam[];
 }
 
-export function createRound(
-  season: SeasonData,
-  input: CreateRoundInput,
-): Round {
-  const pars = parsForNine(season, input.nine);
+export function createRound(season: SeasonData, input: CreateRoundInput): Round {
   const scramble = input.format === "scramble";
 
+  const playerIds = scramble
+    ? (input.teams ?? []).flatMap((t) => t.playerIds)
+    : input.playerIds;
+
+  if (!playerIds || playerIds.length === 0) {
+    throw new Error("A round needs at least one player.");
+  }
+
+  const pars = parsForNine(season, input.nine);
+  const participating = new Set(playerIds);
+
+  // Only create score rows for participating players.
   const playerScores = scramble
     ? []
-    : season.players.map((p) => ({
-        playerId: p.id,
-        handicap: p.handicap,
-        holeScores: emptyHoleScores(false),
-      }));
+    : season.players
+        .filter((p) => participating.has(p.id))
+        .map((p) => ({
+          playerId: p.id,
+          handicap: p.handicap,
+          holeScores: emptyHoleScores(false),
+        }));
 
   let teamScores: TeamRoundScore[] | undefined;
   if (scramble && input.teams) {
@@ -79,13 +90,14 @@ export function createRound(
     nine: input.nine,
     completed: false,
     pars,
+    playerIds,
     playerScores,
     teams: scramble ? input.teams : undefined,
     teamScores,
   };
 }
 
-/** Randomly pair players into 2-person teams (round 4). */
+/** Randomly pair players into 2-person teams (last team has 1 if odd). */
 export function randomTeams(players: Player[]): ScrambleTeam[] {
   const shuffled = [...players];
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
@@ -100,12 +112,12 @@ export function randomTeams(players: Player[]): ScrambleTeam[] {
   return teams;
 }
 
-/** Holes (1-9) with no score entered and no pickup — used to block finishing. */
+/** Holes (1-9) with no score entered — used to block finishing. */
 export function unscoredHoles(round: Round): number[] {
   const missing = new Set<number>();
   const check = (hs: HoleScore[]) => {
     for (const h of hs) {
-      if (h.strokes === null && !h.pickedUp) missing.add(h.hole);
+      if (h.strokes === null) missing.add(h.hole);
     }
   };
   if (round.format === "scramble") {

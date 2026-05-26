@@ -6,8 +6,6 @@ import {
   defaultFormatForRound,
   kidDriveCount,
   kidDriveRuleMet,
-  maxStrokesIndividual,
-  maxStrokesScramble,
   personalPar,
   playerRawRoundPoints,
   playerSeasonRoundPoints,
@@ -17,82 +15,80 @@ import {
   teamPersonalPar,
 } from "./scoring";
 
-describe("personal par & max strokes", () => {
+describe("personal par", () => {
   it("adds handicap to course par", () => {
     expect(personalPar(4, 0)).toBe(4);
     expect(personalPar(4, 3)).toBe(7);
-  });
-
-  it("caps individual strokes at PP + 3", () => {
-    expect(maxStrokesIndividual(personalPar(4, 0))).toBe(7);
-    expect(maxStrokesIndividual(personalPar(5, 2))).toBe(10);
   });
 });
 
 describe("individual Stableford scoring", () => {
   // Par 4, scratch player -> PP = 4
   it("scores an eagle (2+ under PP)", () => {
-    const h = scoreIndividualHole(4, 0, 2, false);
+    const h = scoreIndividualHole(4, 0, 2);
     expect(h.classification).toBe("eagle");
     expect(h.points).toBe(4);
   });
 
   it("scores a birdie (1 under PP)", () => {
-    const h = scoreIndividualHole(4, 0, 3, false);
+    const h = scoreIndividualHole(4, 0, 3);
     expect(h.classification).toBe("birdie");
     expect(h.points).toBe(3);
   });
 
   it("scores a par (equal to PP)", () => {
-    const h = scoreIndividualHole(4, 0, 4, false);
+    const h = scoreIndividualHole(4, 0, 4);
     expect(h.classification).toBe("par");
     expect(h.points).toBe(2);
   });
 
   it("scores a bogey (1 over PP)", () => {
-    const h = scoreIndividualHole(4, 0, 5, false);
+    const h = scoreIndividualHole(4, 0, 5);
     expect(h.classification).toBe("bogey");
     expect(h.points).toBe(1);
   });
 
   it("scores 2+ over PP as 0 points", () => {
-    const h = scoreIndividualHole(4, 0, 6, false);
+    const h = scoreIndividualHole(4, 0, 6);
     expect(h.classification).toBe("other");
     expect(h.points).toBe(0);
   });
 
-  it("awards 0 points and caps strokes on pickup", () => {
-    const h = scoreIndividualHole(4, 0, null, true);
+  it("records strokes exactly as entered with no upper cap", () => {
+    // Previously capped at PP+3; now the real stroke count is stored.
+    const h = scoreIndividualHole(4, 0, 12);
+    expect(h.strokes).toBe(12);
     expect(h.points).toBe(0);
-    expect(h.effectiveStrokes).toBe(7); // PP + 3
+    expect(h.classification).toBe("other");
+  });
+
+  it("stores a blow-up hole as entered and floors points at 0", () => {
+    // Lazarus on a par 4 with +4 handicap -> PP 8; 15 strokes recorded as-is.
+    const h = scoreIndividualHole(4, 4, 15);
+    expect(h.pp).toBe(8);
+    expect(h.strokes).toBe(15);
+    expect(h.points).toBe(0);
     expect(h.entered).toBe(true);
   });
 
-  it("caps strokes at max and awards 0 when blowing up", () => {
-    const h = scoreIndividualHole(4, 0, 12, false);
-    expect(h.effectiveStrokes).toBe(7);
-    expect(h.points).toBe(0);
-  });
-
   it("treats an un-entered hole as not entered, 0 points", () => {
-    const h = scoreIndividualHole(4, 0, null, false);
+    const h = scoreIndividualHole(4, 0, null);
     expect(h.entered).toBe(false);
+    expect(h.strokes).toBeNull();
     expect(h.points).toBe(0);
   });
 
   it("applies handicap to personal par (kid with +3)", () => {
-    // Par 4, handicap 3 -> PP = 7. Net 7 strokes = par = 2 pts.
-    const par = scoreIndividualHole(4, 3, 7, false);
+    const par = scoreIndividualHole(4, 3, 7); // PP 7 -> par
     expect(par.classification).toBe("par");
     expect(par.points).toBe(2);
-    // 5 strokes = 2 under PP = eagle
-    const eagle = scoreIndividualHole(4, 3, 5, false);
+    const eagle = scoreIndividualHole(4, 3, 5); // 2 under PP
     expect(eagle.classification).toBe("eagle");
   });
 
   it("parring every hole yields 18 points over 9 holes", () => {
     const total = Array.from({ length: 9 }).reduce<number>(
-      (acc) => acc + scoreIndividualHole(4, 0, 4, false).points,
+      (acc) => acc + scoreIndividualHole(4, 0, 4).points,
       0,
     );
     expect(total).toBe(18);
@@ -107,27 +103,33 @@ describe("classify boundaries", () => {
     expect(classify(0)).toBe("par");
     expect(classify(1)).toBe("bogey");
     expect(classify(2)).toBe("other");
+    expect(classify(20)).toBe("other");
   });
 });
 
 describe("scramble scoring", () => {
-  it("rounds team PP up (4.5 -> 5)", () => {
-    // pp1 = 4 (par4, hc0), pp2 = 5 (par4, hc1) -> ceil(4.5) = 5
-    expect(teamPersonalPar(4, 5)).toBe(5);
+  it("rounds team PP up (avg 4.5 -> 5)", () => {
+    expect(teamPersonalPar([4, 5])).toBe(5);
   });
 
-  it("uses team PP + 2 as the scramble cap", () => {
-    expect(maxStrokesScramble(5)).toBe(7);
+  it("handles a single-player team (PP = that player's PP)", () => {
+    expect(teamPersonalPar([7])).toBe(7);
   });
 
   it("scores against team PP", () => {
     // par 4, handicaps 0 and 1 -> ppA=4, ppB=5, teamPP = ceil(4.5)=5
-    const par = scoreScrambleHole(4, 0, 1, 5, false);
+    const par = scoreScrambleHole(4, [0, 1], 5);
     expect(par.pp).toBe(5);
     expect(par.classification).toBe("par");
     expect(par.points).toBe(2);
-    const birdie = scoreScrambleHole(4, 0, 1, 4, false);
+    const birdie = scoreScrambleHole(4, [0, 1], 4);
     expect(birdie.classification).toBe("birdie");
+  });
+
+  it("records scramble strokes uncapped, floors points at 0", () => {
+    const h = scoreScrambleHole(4, [0, 1], 14);
+    expect(h.strokes).toBe(14);
+    expect(h.points).toBe(0);
   });
 });
 
@@ -142,17 +144,14 @@ function scrambleRound(strokes: number[]): Round {
     nine: "front",
     completed: true,
     pars: Array(9).fill(4),
+    playerIds: ["dad", "logan"],
     playerScores: [],
     teams: [{ id: "t1", playerIds: ["dad", "logan"] }],
     teamScores: [
       {
         teamId: "t1",
         handicaps: { dad: 0, logan: 3 },
-        holeScores: strokes.map((s, i) => ({
-          hole: i + 1,
-          strokes: s,
-          pickedUp: false,
-        })),
+        holeScores: strokes.map((s, i) => ({ hole: i + 1, strokes: s })),
       },
     ],
   };
@@ -160,7 +159,7 @@ function scrambleRound(strokes: number[]): Round {
 
 describe("scramble round totals", () => {
   it("gives both players the team total", () => {
-    // par 4, hc 0 & 3 -> ppA=4 ppB=7 -> teamPP = ceil(5.5)=6. Strokes 6 = par = 2 pts each hole.
+    // par 4, hc 0 & 3 -> ppA=4 ppB=7 -> teamPP ceil(5.5)=6. Strokes 6 = par.
     const round = scrambleRound(Array(9).fill(6));
     expect(playerRawRoundPoints(round, "dad")).toBe(18);
     expect(playerRawRoundPoints(round, "logan")).toBe(18);
@@ -177,6 +176,7 @@ describe("championship double points", () => {
       nine: "front",
       completed: true,
       pars: Array(9).fill(4),
+      playerIds: ["dad"],
       playerScores: [
         {
           playerId: "dad",
@@ -184,7 +184,6 @@ describe("championship double points", () => {
           holeScores: Array.from({ length: 9 }, (_, i) => ({
             hole: i + 1,
             strokes: 4, // par every hole = 18 raw
-            pickedUp: false,
           })),
         },
       ],
@@ -251,7 +250,6 @@ describe("kid drive rule", () => {
       holeScores: Array.from({ length: 9 }, (_, i) => ({
         hole: i + 1,
         strokes: 6,
-        pickedUp: false,
         kidDriveUsed: i < 1, // only 1 used
       })),
     };

@@ -1,5 +1,5 @@
 import { ellaSharpHoles } from "./seed";
-import type { SeasonData } from "./types";
+import type { Round, SeasonData } from "./types";
 
 /**
  * True when the season still carries the original "all holes par 4" default,
@@ -10,18 +10,42 @@ export function needsParMigration(data: SeasonData): boolean {
   return data.holes.length === 18 && data.holes.every((h) => h.par === 4);
 }
 
+function migrateEllaSharpPars(data: SeasonData): SeasonData {
+  if (!needsParMigration(data)) return data;
+  return { ...data, holes: ellaSharpHoles() };
+}
+
+/** Player IDs that have a score record on a legacy round (pre-playerIds). */
+export function derivePlayerIds(round: Round): string[] {
+  if (round.format === "scramble") {
+    return (round.teams ?? []).flatMap((t) => t.playerIds);
+  }
+  return round.playerScores.map((ps) => ps.playerId);
+}
+
+function migrateRoundPlayerIds(data: SeasonData): SeasonData {
+  let changed = false;
+  const rounds = data.rounds.map((r) => {
+    if (Array.isArray(r.playerIds)) return r;
+    changed = true;
+    return { ...r, playerIds: derivePlayerIds(r) };
+  });
+  return changed ? { ...data, rounds } : data;
+}
+
 /**
  * Apply any pending data migrations to a loaded season. Pure and idempotent:
- * returns the SAME reference when nothing needs to change, so callers can cheaply
- * detect whether a write-back is required.
+ * returns the SAME reference when nothing needs to change, so callers can
+ * cheaply detect whether a write-back is required.
  *
- * Migration 1 — Ella Sharp Park pars: if every hole is still par 4 (the old
- * default), overwrite with the real course pars. Customized pars are preserved.
+ * 1. Ella Sharp Park pars: if every hole is still par 4 (the old default),
+ *    overwrite with the real course pars. Customized pars are preserved.
+ * 2. Round playerIds: backfill participating players on rounds saved before
+ *    per-round player selection existed.
  */
 export function migrateSeason(data: SeasonData): SeasonData {
   let next = data;
-  if (needsParMigration(next)) {
-    next = { ...next, holes: ellaSharpHoles() };
-  }
+  next = migrateEllaSharpPars(next);
+  next = migrateRoundPlayerIds(next);
   return next;
 }
