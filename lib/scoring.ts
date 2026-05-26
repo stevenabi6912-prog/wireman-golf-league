@@ -250,7 +250,7 @@ export function applyHandicapSuggestion(
   return current;
 }
 
-export const HANDICAP_REVIEW_ROUNDS = [3, 6, 9];
+export const HANDICAP_REVIEW_ROUNDS = [1, 2, 3, 6, 9];
 
 export function isHandicapReviewRound(roundNumber: number): boolean {
   return HANDICAP_REVIEW_ROUNDS.includes(roundNumber);

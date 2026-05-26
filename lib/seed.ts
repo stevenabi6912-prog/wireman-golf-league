@@ -3,7 +3,7 @@ import type { Hole, Player, SeasonData } from "./types";
 export const SEASON_VERSION = 1;
 
 export function seedPlayers(): Player[] {
-  return [
+  const players: Omit<Player, "handicapEffectiveFromRound">[] = [
     {
       id: "dad",
       name: "Dad",
@@ -53,6 +53,8 @@ export function seedPlayers(): Player[] {
       },
     },
   ];
+  // Every player's starting handicap is effective from round 1.
+  return players.map((p) => ({ ...p, handicapEffectiveFromRound: 1 }));
 }
 
 /**

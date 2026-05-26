@@ -128,9 +128,18 @@ export default function Dashboard() {
 
       {/* Standings */}
       <section>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">
-          Standings
-        </h2>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
+            Standings
+          </h2>
+          <Link
+            href="/handicap-review"
+            className="text-sm font-semibold"
+            style={{ color: "var(--navy)" }}
+          >
+            Handicap Review ›
+          </Link>
+        </div>
         <div className="card overflow-hidden p-0">
           <table className="w-full text-sm">
             <thead>

@@ -14,6 +14,12 @@ export interface Player {
   name: string;
   /** Strokes added to course par to get personal par. Floor 0. */
   handicap: number;
+  /**
+   * The round number from which the current handicap takes effect. The
+   * handicap-review window only considers rounds at or after this number, so
+   * the window resets each time the handicap is changed. Default 1.
+   */
+  handicapEffectiveFromRound: number;
   /** Tee assignment keyed by hole type. */
   tees: Record<HoleType, TeeLocation>;
 }
