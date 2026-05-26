@@ -9,8 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { migrateSeason } from "./migrate";
 import { createRound, newId, type CreateRoundInput } from "./round";
-import { seedSeason } from "./seed";
+import { ellaSharpHoles, seedSeason } from "./seed";
 import { LocalStorageStore } from "./storage/localStorage";
 import type { SeasonStore } from "./storage/types";
 import type {
@@ -26,6 +27,7 @@ interface SeasonContextValue {
   // settings
   updatePlayerHandicap: (playerId: string, handicap: number) => void;
   updateHolePar: (holeNumber: number, par: number) => void;
+  loadEllaSharpPars: () => void;
   resetSeason: () => void;
   replaceSeason: (data: SeasonData) => void;
   // rounds
@@ -55,9 +57,13 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     store.load().then((data) => {
       if (!active) return;
-      setSeason(data ?? seedSeason());
+      const base = data ?? seedSeason();
+      const migrated = migrateSeason(base);
+      setSeason(migrated);
       setLoading(false);
       loaded.current = true;
+      // Persist immediately so a one-time migration survives the next reload.
+      if (migrated !== base) void store.save(migrated);
     });
     return () => {
       active = false;
@@ -102,6 +108,10 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
     },
     [mutate],
   );
+
+  const loadEllaSharpPars = useCallback(() => {
+    mutate((prev) => ({ ...prev, holes: ellaSharpHoles() }));
+  }, [mutate]);
 
   const resetSeason = useCallback(() => {
     const fresh = seedSeason();
@@ -192,6 +202,7 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
       loading,
       updatePlayerHandicap,
       updateHolePar,
+      loadEllaSharpPars,
       resetSeason,
       replaceSeason,
       startRound,
@@ -205,6 +216,7 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
       loading,
       updatePlayerHandicap,
       updateHolePar,
+      loadEllaSharpPars,
       resetSeason,
       replaceSeason,
       startRound,

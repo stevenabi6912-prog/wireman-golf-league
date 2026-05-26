@@ -12,12 +12,14 @@ export default function SettingsPage() {
     loading,
     updatePlayerHandicap,
     updateHolePar,
+    loadEllaSharpPars,
     resetSeason,
     replaceSeason,
   } = useSeason();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDefaults, setConfirmDefaults] = useState(false);
 
   if (loading || !season) return <Loading />;
 
@@ -147,6 +149,12 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+          <button
+            className="btn btn-outline w-full"
+            onClick={() => setConfirmDefaults(true)}
+          >
+            Load Ella Sharp Park defaults
+          </button>
         </div>
       </section>
 
@@ -222,6 +230,38 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {confirmDefaults && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-sm">
+            <h2 className="mb-1 text-lg font-bold">
+              Load Ella Sharp Park defaults?
+            </h2>
+            <p className="text-sm text-muted">
+              This replaces all 18 hole pars with the official course values
+              (front 36 / back 35 / total 71). Any par edits you&apos;ve made
+              will be overwritten. Completed rounds keep their own scorecards.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                className="btn btn-outline flex-1 py-3"
+                onClick={() => setConfirmDefaults(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary flex-1 py-3"
+                onClick={() => {
+                  loadEllaSharpPars();
+                  setConfirmDefaults(false);
+                }}
+              >
+                Load defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

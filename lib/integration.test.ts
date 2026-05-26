@@ -9,6 +9,14 @@ import {
 } from "./stats";
 import type { HoleScore, Round, SeasonData } from "./types";
 
+/** A seeded season with every hole flattened to par 4, so these tests
+ *  exercise scoring logic independent of the real Ella Sharp Park pars. */
+function seasonAllPar4(): SeasonData {
+  const s = seedSeason();
+  s.holes = s.holes.map((h) => ({ ...h, par: 4 }));
+  return s;
+}
+
 /** Set every hole for an individual player to a fixed stroke count. */
 function fillPlayer(round: Round, playerId: string, strokes: number) {
   round.playerScores = round.playerScores.map((ps) =>
@@ -27,7 +35,7 @@ function complete(round: Round): Round {
 
 describe("full individual round loop", () => {
   it("records strokes and produces correct standings", () => {
-    const season = seedSeason();
+    const season = seasonAllPar4();
     const round = createRound(season, {
       roundNumber: 1,
       date: "2026-05-01",
@@ -67,7 +75,7 @@ describe("full individual round loop", () => {
 
 describe("flagging skipped holes", () => {
   it("lists holes with no score and no pickup", () => {
-    const season = seedSeason();
+    const season = seasonAllPar4();
     const round = createRound(season, {
       roundNumber: 2,
       date: "2026-05-08",
@@ -93,7 +101,7 @@ describe("flagging skipped holes", () => {
 
 describe("scramble round loop", () => {
   it("gives both teammates the team total and tracks kid drives", () => {
-    const season = seedSeason();
+    const season = seasonAllPar4();
     const teams = [
       { id: "team-1", playerIds: ["dad", "logan"] },
       { id: "team-2", playerIds: ["mom", "luke"] },
@@ -136,7 +144,7 @@ describe("scramble round loop", () => {
 
 describe("championship doubling in season totals", () => {
   it("doubles the round's points toward the season", () => {
-    const season = seedSeason();
+    const season = seasonAllPar4();
     const round = createRound(season, {
       roundNumber: 12,
       date: "2026-08-01",
@@ -154,7 +162,7 @@ describe("championship doubling in season totals", () => {
 
 describe("handicap review across three rounds", () => {
   it("suggests loosening for a struggling player", () => {
-    const season: SeasonData = seedSeason();
+    const season: SeasonData = seasonAllPar4();
     // Three individual rounds where Lazarus blows up (0 pts) -> avg 0 < 14.
     for (let n = 1; n <= 3; n += 1) {
       const round = createRound(season, {
@@ -182,7 +190,7 @@ describe("handicap review across three rounds", () => {
 
 describe("random team draw", () => {
   it("produces 3 teams of 2 from 6 players", () => {
-    const season = seedSeason();
+    const season = seasonAllPar4();
     const teams = randomTeams(season.players);
     expect(teams).toHaveLength(3);
     teams.forEach((t) => expect(t.playerIds).toHaveLength(2));

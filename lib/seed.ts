@@ -55,9 +55,23 @@ export function seedPlayers(): Player[] {
   ];
 }
 
-/** All 18 holes default to par 4. Editable in Settings. */
+/**
+ * Official Ella Sharp Park hole pars (holes 1-18, display order).
+ * Front 9 = 36, Back 9 = 35, total = 71. Hole 8 always plays as par 4
+ * (par 3 from Red on the card) — the personal-par system absorbs the gap.
+ */
+export const ELLA_SHARP_PARS: readonly number[] = [
+  4, 4, 5, 3, 3, 4, 4, 4, 5, // front (36)
+  4, 3, 4, 3, 5, 5, 3, 4, 4, // back (35)
+];
+
+export function ellaSharpHoles(): Hole[] {
+  return ELLA_SHARP_PARS.map((par, i) => ({ number: i + 1, par }));
+}
+
+/** All 18 holes seeded to the Ella Sharp Park pars. Editable in Settings. */
 export function seedHoles(): Hole[] {
-  return Array.from({ length: 18 }, (_, i) => ({ number: i + 1, par: 4 }));
+  return ellaSharpHoles();
 }
 
 export function seedSeason(): SeasonData {
