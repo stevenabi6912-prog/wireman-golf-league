@@ -162,3 +162,35 @@ describe("playerIds migration", () => {
     expect(migrateSeason(once)).toBe(once);
   });
 });
+
+function seasonWithLegacyPlayers(): SeasonData {
+  const s = seedSeason();
+  s.players = s.players.map((p) => {
+    const copy = { ...p };
+    delete (copy as { handicapEffectiveFromRound?: number })
+      .handicapEffectiveFromRound;
+    return copy as SeasonData["players"][number];
+  });
+  return s;
+}
+
+describe("handicapEffectiveFromRound migration", () => {
+  it("defaults legacy player records to round 1", () => {
+    const migrated = migrateSeason(seasonWithLegacyPlayers());
+    expect(
+      migrated.players.every((p) => p.handicapEffectiveFromRound === 1),
+    ).toBe(true);
+  });
+
+  it("leaves an existing pointer untouched", () => {
+    const data = seedSeason();
+    data.players[0] = { ...data.players[0], handicapEffectiveFromRound: 4 };
+    const migrated = migrateSeason(data);
+    expect(migrated.players[0].handicapEffectiveFromRound).toBe(4);
+  });
+
+  it("is idempotent", () => {
+    const once = migrateSeason(seasonWithLegacyPlayers());
+    expect(migrateSeason(once)).toBe(once);
+  });
+});

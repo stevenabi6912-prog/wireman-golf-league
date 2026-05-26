@@ -187,7 +187,15 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
         return {
           ...prev,
           players: prev.players.map((p) =>
-            p.id === playerId ? { ...p, handicap: to } : p,
+            p.id === playerId
+              ? {
+                  ...p,
+                  handicap: to,
+                  // New handicap is effective from the next round, resetting
+                  // the player's review window.
+                  handicapEffectiveFromRound: afterRound + 1,
+                }
+              : p,
           ),
           handicapChanges: [...prev.handicapChanges, change],
         };

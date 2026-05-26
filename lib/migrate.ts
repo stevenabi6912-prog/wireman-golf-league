@@ -33,6 +33,16 @@ function migrateRoundPlayerIds(data: SeasonData): SeasonData {
   return changed ? { ...data, rounds } : data;
 }
 
+function migratePlayerHandicapWindow(data: SeasonData): SeasonData {
+  let changed = false;
+  const players = data.players.map((p) => {
+    if (typeof p.handicapEffectiveFromRound === "number") return p;
+    changed = true;
+    return { ...p, handicapEffectiveFromRound: 1 };
+  });
+  return changed ? { ...data, players } : data;
+}
+
 /**
  * Apply any pending data migrations to a loaded season. Pure and idempotent:
  * returns the SAME reference when nothing needs to change, so callers can
@@ -42,10 +52,13 @@ function migrateRoundPlayerIds(data: SeasonData): SeasonData {
  *    overwrite with the real course pars. Customized pars are preserved.
  * 2. Round playerIds: backfill participating players on rounds saved before
  *    per-round player selection existed.
+ * 3. Player handicapEffectiveFromRound: default to 1 for legacy player records
+ *    saved before the sliding-window review existed.
  */
 export function migrateSeason(data: SeasonData): SeasonData {
   let next = data;
   next = migrateEllaSharpPars(next);
   next = migrateRoundPlayerIds(next);
+  next = migratePlayerHandicapWindow(next);
   return next;
 }

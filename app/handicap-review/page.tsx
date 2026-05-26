@@ -6,9 +6,24 @@ import { useSeason } from "@/lib/season-context";
 import {
   HANDICAP_LOOSEN_THRESHOLD,
   HANDICAP_TIGHTEN_THRESHOLD,
-  isHandicapReviewRound,
 } from "@/lib/scoring";
-import { completedRounds, handicapReview } from "@/lib/stats";
+import {
+  completedRounds,
+  handicapReview,
+  latestCompletedRound,
+  type HandicapReviewRow,
+} from "@/lib/stats";
+
+function formatHandicap(h: number): string {
+  return h === 0 ? "0" : `+${h}`;
+}
+
+/** "Round 1" or "Rounds 1, 2" describing the window. */
+function windowLabel(rounds: number[]): string {
+  if (rounds.length === 0) return "no rounds yet";
+  if (rounds.length === 1) return `Round ${rounds[0]}`;
+  return `Rounds ${rounds.join(", ")}`;
+}
 
 export default function HandicapReviewPage() {
   const { season, loading, applyHandicapChange } = useSeason();
@@ -21,110 +36,108 @@ export default function HandicapReviewPage() {
         <PageHeader title="Handicap Review" back={{ href: "/", label: "Home" }} />
         <EmptyState
           title="No rounds played yet"
-          body="Handicaps are reviewed after rounds 3, 6, and 9."
+          body="Reviews run after rounds 1, 2, 3, 6, and 9."
         />
       </div>
     );
   }
 
-  const lastNum = Math.max(...done.map((r) => r.roundNumber));
-  // The review round being addressed (latest 3/6/9 played, else latest round).
-  const reviewRoundNum =
-    [9, 6, 3].find((n) => n <= lastNum) ?? lastNum;
+  const currentRoundNumber = latestCompletedRound(season);
   const rows = handicapReview(season);
 
   const appliedFor = (playerId: string) =>
     season.handicapChanges.find(
-      (c) => c.playerId === playerId && c.afterRound === reviewRoundNum,
+      (c) => c.playerId === playerId && c.afterRound === currentRoundNumber,
     );
 
   return (
     <div>
       <PageHeader
         title="Handicap Review"
-        subtitle={`After Round ${reviewRoundNum}`}
+        subtitle={`After Round ${currentRoundNumber}`}
         back={{ href: "/", label: "Home" }}
       />
 
       <div className="card mb-4 text-sm text-muted">
-        Average over {HANDICAP_TIGHTEN_THRESHOLD} pts/round → tighten by 1.
-        Below {HANDICAP_LOOSEN_THRESHOLD} → loosen by 1. New handicaps apply to
-        the next round; past rounds keep their scores.
+        Window average over {HANDICAP_TIGHTEN_THRESHOLD} pts → tighten by 1.
+        Below {HANDICAP_LOOSEN_THRESHOLD} → loosen by 1. Applying a change starts
+        a fresh window from the next round; past rounds keep their scores.
       </div>
 
-      {!isHandicapReviewRound(reviewRoundNum) && (
-        <p className="mb-3 text-xs" style={{ color: "var(--gold)" }}>
-          Note: Round {reviewRoundNum} isn&apos;t a scheduled review round —
-          suggestions shown for reference.
-        </p>
-      )}
-
       <div className="space-y-3">
-        {rows.map((row) => {
-          const applied = appliedFor(row.player.id);
-          return (
-            <div key={row.player.id} className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold">{row.player.name}</p>
-                  <p className="text-sm text-muted">
-                    Avg{" "}
-                    <span className="font-semibold tabular-nums">
-                      {row.roundsPlayed ? row.avgPoints.toFixed(1) : "—"}
-                    </span>{" "}
-                    pts · {row.roundsPlayed} round
-                    {row.roundsPlayed === 1 ? "" : "s"}
-                  </p>
-                </div>
-                <SuggestionPill suggestion={row.suggestion} />
-              </div>
-
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-lg font-bold tabular-nums">
-                  <span>
-                    {row.currentHandicap === 0
-                      ? "0"
-                      : `+${row.currentHandicap}`}
-                  </span>
-                  {row.suggestion !== "none" && (
-                    <>
-                      <span className="text-muted">→</span>
-                      <span style={{ color: "var(--gold)" }}>
-                        {row.proposedHandicap === 0
-                          ? "0"
-                          : `+${row.proposedHandicap}`}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                {applied ? (
-                  <Pill tone="forest">Applied ✓</Pill>
-                ) : row.suggestion === "none" ? (
-                  <span className="text-sm text-muted">No change</span>
-                ) : (
-                  <button
-                    className="btn btn-primary px-5 py-2"
-                    onClick={() =>
-                      applyHandicapChange(
-                        row.player.id,
-                        row.proposedHandicap,
-                        reviewRoundNum,
-                      )
-                    }
-                  >
-                    Apply
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {rows.map((row) => (
+          <ReviewCard
+            key={row.player.id}
+            row={row}
+            applied={Boolean(appliedFor(row.player.id))}
+            onApply={() =>
+              applyHandicapChange(
+                row.player.id,
+                row.proposedHandicap,
+                currentRoundNumber,
+              )
+            }
+          />
+        ))}
       </div>
 
       <Link href="/" className="btn btn-outline mt-5 w-full py-3">
         Done
       </Link>
+    </div>
+  );
+}
+
+function ReviewCard({
+  row,
+  applied,
+  onApply,
+}: {
+  row: HandicapReviewRow;
+  applied: boolean;
+  onApply: () => void;
+}) {
+  const { player, windowRounds, windowPoints, roundsPlayed, avgPoints } = row;
+
+  // "Based on Round 1 score: 30 pts → tighten to +3"
+  const basis =
+    roundsPlayed === 0
+      ? "No rounds in the current window yet."
+      : roundsPlayed === 1
+        ? `Based on ${windowLabel(windowRounds)} score: ${windowPoints} pts`
+        : `Based on ${windowLabel(windowRounds)}: ${avgPoints.toFixed(1)} avg (${windowPoints} pts)`;
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between">
+        <p className="font-bold">{player.name}</p>
+        <SuggestionPill suggestion={row.suggestion} />
+      </div>
+      <p className="mt-0.5 text-sm text-muted">{basis}</p>
+
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-lg font-bold tabular-nums">
+          <span>{formatHandicap(row.currentHandicap)}</span>
+          {row.suggestion !== "none" && (
+            <>
+              <span className="text-muted">→</span>
+              <span style={{ color: "var(--gold)" }}>
+                {formatHandicap(row.proposedHandicap)}
+              </span>
+            </>
+          )}
+        </div>
+
+        {applied ? (
+          <Pill tone="forest">Applied ✓</Pill>
+        ) : row.suggestion === "none" ? (
+          <span className="text-sm text-muted">No change needed</span>
+        ) : (
+          <button className="btn btn-primary px-5 py-2" onClick={onApply}>
+            Apply
+          </button>
+        )}
+      </div>
     </div>
   );
 }

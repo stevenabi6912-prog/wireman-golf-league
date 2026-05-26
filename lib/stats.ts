@@ -103,6 +103,10 @@ export function lastRoundMvp(
 
 export interface HandicapReviewRow {
   player: Player;
+  /** Round numbers considered for this player (the sliding window). */
+  windowRounds: number[];
+  /** Total raw Stableford points across the window. */
+  windowPoints: number;
   roundsPlayed: number;
   avgPoints: number;
   suggestion: HandicapSuggestion;
@@ -110,25 +114,30 @@ export interface HandicapReviewRow {
   proposedHandicap: number;
 }
 
+/** The latest completed round number, or 0 if no rounds are done. */
+export function latestCompletedRound(season: SeasonData): number {
+  const done = completedRounds(season);
+  return done.length ? Math.max(...done.map((r) => r.roundNumber)) : 0;
+}
+
 /**
- * Average raw Stableford points per round, used to drive handicap suggestions.
- * Considers all completed rounds (optionally only up to a given round number).
+ * Per-player handicap suggestions driven by a sliding window. The window is the
+ * set of completed rounds the player participated in at or after their
+ * `handicapEffectiveFromRound` — so it resets whenever their handicap changes.
+ * The 22 / 14 thresholds are applied to the window average. With a single round
+ * in the window (the common early-season case) the average is just that round.
  */
-export function handicapReview(
-  season: SeasonData,
-  uptoRoundNumber?: number,
-): HandicapReviewRow[] {
-  const done = completedRounds(season).filter(
-    (r) => uptoRoundNumber === undefined || r.roundNumber <= uptoRoundNumber,
-  );
+export function handicapReview(season: SeasonData): HandicapReviewRow[] {
+  const done = completedRounds(season);
   return season.players.map((player) => {
+    const window = done.filter(
+      (r) =>
+        r.roundNumber >= player.handicapEffectiveFromRound &&
+        playerInRound(r, player.id),
+    );
     let total = 0;
-    let rounds = 0;
-    for (const round of done) {
-      if (!playerInRound(round, player.id)) continue;
-      total += playerRawRoundPoints(round, player.id);
-      rounds += 1;
-    }
+    for (const round of window) total += playerRawRoundPoints(round, player.id);
+    const rounds = window.length;
     const avg = rounds ? total / rounds : 0;
     const suggestion = rounds ? suggestHandicapChange(avg) : "none";
     let proposed = player.handicap;
@@ -136,6 +145,8 @@ export function handicapReview(
     else if (suggestion === "loosen") proposed = player.handicap + 1;
     return {
       player,
+      windowRounds: window.map((r) => r.roundNumber),
+      windowPoints: total,
       roundsPlayed: rounds,
       avgPoints: avg,
       suggestion,
