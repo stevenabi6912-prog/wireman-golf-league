@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const items = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/history", label: "History", icon: HistoryIcon },
+  { href: "/trophy-room", label: "Trophies", icon: TrophyIcon },
   { href: "/stats", label: "Stats", icon: StatsIcon },
   { href: "/settings", label: "Settings", icon: GearIcon },
 ];
@@ -64,6 +65,20 @@ function HistoryIcon({ active }: { active: boolean }) {
         stroke="currentColor"
         strokeWidth={active ? 2.4 : 1.8}
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TrophyIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 4h10v4a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M9 17h6M10 17l.5-3h3l.5 3M8 21h8"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

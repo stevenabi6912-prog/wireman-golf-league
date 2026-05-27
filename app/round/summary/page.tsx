@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loading, PageHeader, Pill } from "@/components/ui";
+import { NotesEditor } from "@/components/RoundNotes";
 import { useSeason } from "@/lib/season-context";
+import { clampNote } from "@/lib/notes";
 import {
   countClassification,
   isHandicapReviewRound,
@@ -52,13 +54,18 @@ const ACHIEVEMENT_TONE: Record<Achievement["type"], "gold" | "forest" | "navy"> 
     "first-birdie": "forest",
     "personal-best": "navy",
     "par-the-round": "gold",
+    "hole-in-one": "gold",
+    "first-par": "forest",
+    "three-in-a-row": "navy",
+    sweep: "gold",
+    comeback: "navy",
   };
 
 function SummaryContent() {
   const router = useRouter();
   const params = useSearchParams();
   const id = params.get("id");
-  const { season, loading } = useSeason();
+  const { season, loading, updateRound } = useSeason();
 
   if (loading || !season) return <Loading />;
 
@@ -290,6 +297,16 @@ function SummaryContent() {
             </Link>
           ))}
         </div>
+      </Section>
+
+      {/* Round notes */}
+      <Section title="Round Notes">
+        <NotesEditor
+          initial={round.notes ?? ""}
+          onSave={(note) =>
+            updateRound(round.id, (r) => ({ ...r, notes: clampNote(note) }))
+          }
+        />
       </Section>
 
       <Link

@@ -82,6 +82,8 @@ export interface Round {
   /** Scramble only. */
   teams?: ScrambleTeam[];
   teamScores?: TeamRoundScore[];
+  /** Commissioner's free-text note about the round. */
+  notes?: string;
 }
 
 export interface HandicapChange {

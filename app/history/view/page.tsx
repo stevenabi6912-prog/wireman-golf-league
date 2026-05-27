@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import RoundScorecard from "@/components/RoundScorecard";
+import { NotesCard } from "@/components/RoundNotes";
 import { EmptyState, Loading, PageHeader } from "@/components/ui";
 import { useSeason } from "@/lib/season-context";
 import { formatRoundLabel } from "@/lib/stats";
@@ -37,6 +38,14 @@ function RoundDetail() {
         back={{ href: "/history", label: "History" }}
       />
       <RoundScorecard season={season} round={round} />
+      {round.notes && round.notes.trim() && (
+        <div className="mt-4">
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">
+            Round Notes
+          </h2>
+          <NotesCard note={round.notes} />
+        </div>
+      )}
     </div>
   );
 }

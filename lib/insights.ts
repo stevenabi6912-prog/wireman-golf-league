@@ -5,8 +5,9 @@ import {
   playerRawRoundPoints,
   playerScoredHoles,
   playerSeasonRoundPoints,
+  type HoleClassification,
 } from "./scoring";
-import type { Player, Round } from "./types";
+import type { Player, Round, SeasonData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -155,13 +156,24 @@ export type AchievementType =
   | "first-eagle"
   | "first-birdie"
   | "personal-best"
-  | "par-the-round";
+  | "par-the-round"
+  | "hole-in-one"
+  | "first-par"
+  | "three-in-a-row"
+  | "sweep"
+  | "comeback";
 
 export interface Achievement {
   player: Player;
   type: AchievementType;
   detail: string;
+  /** Hole-specific context, when the achievement happened on a hole. */
+  hole?: number;
+  par?: number;
+  strokes?: number;
 }
+
+const PAR_OR_BETTER: HoleClassification[] = ["par", "birdie", "eagle"];
 
 export function getAchievements(
   round: Round,
@@ -169,40 +181,105 @@ export function getAchievements(
   allRounds: Round[],
 ): Achievement[] {
   const out: Achievement[] = [];
+  const mvpIds = new Set(
+    getRoundMvp(round, players, allRounds).map((m) => m.player.id),
+  );
+  const movement = new Map(
+    getStandingsMovement(round, players, allRounds).map((m) => [m.player.id, m]),
+  );
+
   for (const p of participatingPlayers(round, players)) {
     const prior = allRounds.filter(
       (r) => r.roundNumber < round.roundNumber && r.playerIds.includes(p.id),
     );
-    const thisScored = playerScoredHoles(round, p.id);
-    const thisBirdies = countClassification(thisScored, "birdie");
-    const thisEagles = countClassification(thisScored, "eagle");
+    const scored = playerScoredHoles(round, p.id);
     const thisPoints = playerRawRoundPoints(round, p.id);
     const priorPoints = prior.map((r) => playerRawRoundPoints(r, p.id));
-    const priorBirdies = prior.reduce(
-      (s, r) => s + countClassification(playerScoredHoles(r, p.id), "birdie"),
-      0,
-    );
-    const priorEagles = prior.reduce(
-      (s, r) => s + countClassification(playerScoredHoles(r, p.id), "eagle"),
-      0,
-    );
+    const priorScored = prior.map((r) => playerScoredHoles(r, p.id));
 
-    if (thisEagles > 0 && priorEagles === 0)
-      out.push({ player: p, type: "first-eagle", detail: "First eagle of the season" });
-    if (thisBirdies > 0 && priorBirdies === 0)
-      out.push({ player: p, type: "first-birdie", detail: "First birdie of the season" });
+    const has = (c: HoleClassification) => scored.some((h) => h.classification === c);
+    const priorHas = (c: HoleClassification) =>
+      priorScored.some((rs) => rs.some((h) => h.classification === c));
+    const ctx = (i: number) => ({
+      hole: i + 1,
+      par: round.pars[i],
+      strokes: scored[i].strokes ?? undefined,
+    });
+
+    // First eagle / first birdie of the season.
+    if (has("eagle") && !priorHas("eagle")) {
+      const i = scored.findIndex((h) => h.classification === "eagle");
+      out.push({ player: p, type: "first-eagle", detail: "First eagle of the season", ...ctx(i) });
+    }
+    if (has("birdie") && !priorHas("birdie")) {
+      const i = scored.findIndex((h) => h.classification === "birdie");
+      out.push({ player: p, type: "first-birdie", detail: "First birdie of the season", ...ctx(i) });
+    }
+
+    // New personal best (needs at least one prior round).
     if (prior.length >= 1 && thisPoints > Math.max(...priorPoints))
-      out.push({
-        player: p,
-        type: "personal-best",
-        detail: `New personal best: ${thisPoints} pts`,
-      });
+      out.push({ player: p, type: "personal-best", detail: `New personal best: ${thisPoints} pts` });
+
+    // First 18+ point round.
     if (thisPoints >= 18 && priorPoints.every((pt) => pt < 18))
+      out.push({ player: p, type: "par-the-round", detail: "First 18+ point round" });
+
+    // Hole-in-one (every ace).
+    scored.forEach((h, i) => {
+      if (h.strokes === 1)
+        out.push({ player: p, type: "hole-in-one", detail: `Hole-in-one on Hole ${i + 1}`, ...ctx(i) });
+    });
+
+    // First par of the season.
+    if (has("par") && !priorHas("par")) {
+      const i = scored.findIndex((h) => h.classification === "par");
+      out.push({ player: p, type: "first-par", detail: "First par of the season", ...ctx(i) });
+    }
+
+    // Three consecutive holes at par or better.
+    const streak = scored.findIndex(
+      (_, i) =>
+        i + 2 < scored.length &&
+        PAR_OR_BETTER.includes(scored[i].classification) &&
+        PAR_OR_BETTER.includes(scored[i + 1].classification) &&
+        PAR_OR_BETTER.includes(scored[i + 2].classification),
+    );
+    if (streak >= 0)
       out.push({
         player: p,
-        type: "par-the-round",
-        detail: "First 18+ point round",
+        type: "three-in-a-row",
+        detail: `Par or better on holes ${streak + 1}–${streak + 3}`,
+        hole: streak + 1,
       });
+
+    // Sweep — won the round.
+    if (mvpIds.has(p.id))
+      out.push({ player: p, type: "sweep", detail: `Won the round (${thisPoints} pts)` });
+
+    // Comeback — climbed 3+ spots, round 3 onward.
+    const mv = movement.get(p.id);
+    if (round.roundNumber >= 3 && mv && mv.delta >= 3)
+      out.push({ player: p, type: "comeback", detail: `Climbed ${mv.delta} spots` });
+  }
+  return out;
+}
+
+export interface EarnedAchievement extends Achievement {
+  roundNumber: number;
+  date: string;
+}
+
+/** Every achievement earned across the season, in chronological round order. */
+export function getAllAchievements(season: SeasonData): EarnedAchievement[] {
+  const done = season.rounds
+    .filter((r) => r.completed)
+    .sort((a, b) => a.roundNumber - b.roundNumber);
+  const out: EarnedAchievement[] = [];
+  for (const round of done) {
+    const upTo = done.filter((r) => r.roundNumber <= round.roundNumber);
+    for (const a of getAchievements(round, season.players, upTo)) {
+      out.push({ ...a, roundNumber: round.roundNumber, date: round.date });
+    }
   }
   return out;
 }
