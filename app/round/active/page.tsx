@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import ScoreStepper from "@/components/ScoreStepper";
+import PhotoCapture from "@/components/PhotoCapture";
 import { Loading } from "@/components/ui";
 import { useSeason } from "@/lib/season-context";
 import {
@@ -150,6 +151,11 @@ export default function ActiveRoundPage() {
         >
           ›
         </button>
+      </div>
+
+      {/* Per-hole photo */}
+      <div className="mb-3">
+        <PhotoCapture roundId={round.id} hole={hole} label={`Add photo · Hole ${hole}`} />
       </div>
 
       {/* Score cards */}

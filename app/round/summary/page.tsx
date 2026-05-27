@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loading, PageHeader, Pill } from "@/components/ui";
 import { NotesEditor } from "@/components/RoundNotes";
+import PhotoGallery from "@/components/PhotoGallery";
 import { useSeason } from "@/lib/season-context";
 import { clampNote } from "@/lib/notes";
 import {
@@ -298,6 +299,15 @@ function SummaryContent() {
           ))}
         </div>
       </Section>
+
+      {/* Photos */}
+      {season.photos.some((p) => p.roundId === round.id) && (
+        <Section title="Photos">
+          <PhotoGallery
+            photos={season.photos.filter((p) => p.roundId === round.id)}
+          />
+        </Section>
+      )}
 
       {/* Round notes */}
       <Section title="Round Notes">

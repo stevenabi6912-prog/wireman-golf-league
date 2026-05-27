@@ -43,6 +43,11 @@ function migratePlayerHandicapWindow(data: SeasonData): SeasonData {
   return changed ? { ...data, players } : data;
 }
 
+function migratePhotos(data: SeasonData): SeasonData {
+  if (Array.isArray(data.photos)) return data;
+  return { ...data, photos: [] };
+}
+
 /**
  * Apply any pending data migrations to a loaded season. Pure and idempotent:
  * returns the SAME reference when nothing needs to change, so callers can
@@ -60,5 +65,6 @@ export function migrateSeason(data: SeasonData): SeasonData {
   next = migrateEllaSharpPars(next);
   next = migrateRoundPlayerIds(next);
   next = migratePlayerHandicapWindow(next);
+  next = migratePhotos(next);
   return next;
 }

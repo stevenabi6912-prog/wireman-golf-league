@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { SeasonProvider } from "@/lib/season-context";
+import { AuthProvider } from "@/lib/auth";
+import AuthGate from "@/components/AuthGate";
 import BottomNav from "@/components/BottomNav";
+import SyncStatus from "@/components/SyncStatus";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,12 +27,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SeasonProvider>
-          <div className="mx-auto flex min-h-screen max-w-md flex-col">
-            <main className="flex-1 px-4 pb-28 pt-5">{children}</main>
-            <BottomNav />
-          </div>
-        </SeasonProvider>
+        <AuthProvider>
+          <AuthGate>
+            <SeasonProvider>
+              <div className="mx-auto flex min-h-screen max-w-md flex-col">
+                <SyncStatus />
+                <main className="flex-1 px-4 pb-28 pt-5">{children}</main>
+                <BottomNav />
+              </div>
+            </SeasonProvider>
+          </AuthGate>
+        </AuthProvider>
       </body>
     </html>
   );
