@@ -9,17 +9,14 @@ import {
   useState,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
-import {
-  authRedirectUrl,
-  getSupabaseClient,
-  isSupabaseConfigured,
-} from "./supabase/client";
+import { getSupabaseClient, isSupabaseConfigured } from "./supabase/client";
 
 interface AuthValue {
   configured: boolean;
   ready: boolean;
   session: Session | null;
-  signIn: (email: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  signUp: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -47,14 +44,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [configured]);
 
-  const signIn = useCallback(async (email: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const client = getSupabaseClient();
     if (!client) return { error: "Auth is not configured." };
-    const { error } = await client.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: authRedirectUrl() },
+    const { error } = await client.auth.signInWithPassword({
+      email: email.trim(),
+      password,
     });
     return error ? { error: error.message } : {};
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    const client = getSupabaseClient();
+    if (!client) return { error: "Auth is not configured." };
+    const { data, error } = await client.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+    if (error) return { error: error.message };
+    // With email confirmation OFF, signUp returns a session immediately.
+    if (!data.session) {
+      return {
+        error:
+          "Account created, but email confirmation is on. Turn off 'Confirm email' in Supabase → Authentication → Providers → Email, then sign in.",
+      };
+    }
+    return {};
   }, []);
 
   const signOut = useCallback(async () => {
@@ -62,8 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthValue>(
-    () => ({ configured, ready, session, signIn, signOut }),
-    [configured, ready, session, signIn, signOut],
+    () => ({ configured, ready, session, signIn, signUp, signOut }),
+    [configured, ready, session, signIn, signUp, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

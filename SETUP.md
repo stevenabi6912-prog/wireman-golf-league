@@ -28,16 +28,16 @@ changes the existing single-device behavior until the env secrets are present.
 - The storage policies at the bottom of the migration file allow public read and
   authenticated write/update/delete.
 
-## 4. Configure Auth URLs
+## 4. Configure email + password auth
 
-Authentication → **URL Configuration**:
+Authentication → **Providers → Email**:
 
-- **Site URL:** `https://stevenabi6912-prog.github.io/wireman-golf-league/`
-- **Redirect URLs** (add both):
-  - `https://stevenabi6912-prog.github.io/wireman-golf-league/**`
-  - `http://localhost:3000/**` (local dev)
+- Make sure **Email** is enabled.
+- Turn **OFF "Confirm email."** This lets you create the shared family login and
+  sign in instantly — no emails sent, so no magic-link rate limits.
 
-Email magic links are on by default. Use the shared inbox `wireman.golf@gmail.com`.
+(URL Configuration isn't required for password sign-in, but setting the Site URL
+to the GitHub Pages URL is harmless.)
 
 ## 5. Add the GitHub Actions secrets
 
@@ -54,22 +54,26 @@ at build time. The anon key is meant to be public; RLS protects the data.
 - Actions → **Deploy to GitHub Pages** → Run workflow (or push any commit to `main`).
 - The build injects the secrets (see `.github/workflows/deploy.yml`).
 
-## 7. Sign in
+## 7. Create the login and sign in
 
-- Open the site on your phone → enter `wireman.golf@gmail.com` → **Send magic link** → tap the link in the inbox.
-- Repeat on Mom's phone with the same email (shared inbox).
-- On the first signed-in phone, the Dashboard offers **"Upload existing season"** —
-  tap it to push the current local season into the cloud.
+- Open the site → tap **"First time? Create the family account"** → enter an
+  email and a password (6+ characters) → **Create account**. You're signed in
+  immediately (no email).
+- On every other phone, open the site → enter the same email + password →
+  **Sign in**. Each device stays signed in afterward (use a normal tab or the
+  Home Screen app — not a private/incognito tab).
+- On the phone that has your existing rounds, tap **"Upload existing season"**
+  on the Dashboard to push them to the cloud.
 
 ## Checklist
 
 - [ ] Create Supabase project (`us-east-2`)
 - [ ] Run `supabase/migrations/001_initial.sql`
 - [ ] Create the `golf-photos` bucket (public read)
-- [ ] Configure Auth → URL Configuration (site + redirect URLs)
+- [ ] Authentication → Providers → Email → turn OFF "Confirm email"
 - [ ] Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` Actions secrets
 - [ ] Re-run the deploy workflow
-- [ ] Sign in on both phones; upload the existing season
+- [ ] Create the family login, sign in on both phones, upload the existing season
 
 ## How it behaves
 
