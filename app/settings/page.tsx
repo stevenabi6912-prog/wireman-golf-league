@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { PageHeader, Loading } from "@/components/ui";
 import { useSeason } from "@/lib/season-context";
+import { useAuth } from "@/lib/auth";
 import { SEASON_VERSION } from "@/lib/seed";
 import type { SeasonData } from "@/lib/types";
 
@@ -16,6 +17,7 @@ export default function SettingsPage() {
     resetSeason,
     replaceSeason,
   } = useSeason();
+  const { configured, session, signOut } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -54,10 +56,12 @@ export default function SettingsPage() {
       }
       replaceSeason({
         version: data.version ?? SEASON_VERSION,
+        familyId: data.familyId,
         players: data.players,
         holes: data.holes,
         rounds: data.rounds,
         handicapChanges: data.handicapChanges ?? [],
+        photos: data.photos ?? [],
         activeRoundId: data.activeRoundId ?? null,
       });
       setImportMsg(`Imported ${data.rounds.length} round(s) successfully.`);
@@ -187,6 +191,32 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {/* Account (cloud sync) */}
+      {configured && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">
+            Account
+          </h2>
+          <div className="card space-y-2">
+            <p className="text-sm text-muted">
+              {session?.user?.email
+                ? `Signed in as ${session.user.email}`
+                : "Not signed in"}
+            </p>
+            <button
+              className="btn btn-outline w-full"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+            <p className="text-xs text-muted">
+              Signed-out devices keep working in local-only mode using the
+              cached season.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Danger zone */}
       <section className="mb-4">

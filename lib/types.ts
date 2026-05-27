@@ -96,11 +96,28 @@ export interface HandicapChange {
   timestamp: string; // ISO
 }
 
+export interface Photo {
+  id: string;
+  roundId: string;
+  /** Hole 1-9 the photo is attached to, or null for a round-level photo. */
+  hole: number | null;
+  playerId: string | null;
+  /** Path within the Supabase storage bucket. */
+  storagePath: string;
+  /** Public URL for display (derived from storagePath). */
+  url: string;
+  caption?: string;
+  createdAt: string;
+}
+
 export interface SeasonData {
   version: number;
+  /** Supabase family id once synced; undefined in local-only mode. */
+  familyId?: string;
   players: Player[];
   holes: Hole[]; // all 18
   rounds: Round[];
   handicapChanges: HandicapChange[];
+  photos: Photo[];
   activeRoundId: string | null;
 }

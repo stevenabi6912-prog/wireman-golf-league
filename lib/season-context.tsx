@@ -12,14 +12,24 @@ import {
 import { migrateSeason } from "./migrate";
 import { createRound, newId, type CreateRoundInput } from "./round";
 import { ellaSharpHoles, seedSeason } from "./seed";
-import { LocalStorageStore } from "./storage/localStorage";
-import type { SeasonStore } from "./storage/types";
+import { SyncStore } from "./storage/sync-store";
+import type { ReactiveStore, SyncStatus } from "./storage/types";
+import { getSupabaseClient } from "./supabase/client";
+import { uploadPhoto } from "./photos";
 import type {
   HandicapChange,
+  Photo,
   Player,
   Round,
   SeasonData,
 } from "./types";
+
+export interface AddPhotoInput {
+  roundId: string;
+  hole: number | null;
+  playerId: string | null;
+  file: File;
+}
 
 interface SeasonContextValue {
   season: SeasonData | null;
@@ -41,20 +51,33 @@ interface SeasonContextValue {
     to: number,
     afterRound: number,
   ) => void;
+  // photos
+  addPhoto: (input: AddPhotoInput) => Promise<void>;
+  updatePhotoCaption: (photoId: string, caption: string) => void;
+  deletePhoto: (photoId: string) => void;
+  // sync
+  syncStatus: SyncStatus;
+  pendingOps: () => unknown[];
+  uploadLocalToCloud: () => Promise<void>;
 }
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
 
-// Single place to choose the backend — swap this line for a network store.
-const store: SeasonStore = new LocalStorageStore();
+// Single place to choose the backend. SyncStore is offline-first and falls back
+// to local-only when Supabase isn't configured.
+const store: ReactiveStore = new SyncStore();
 
 export function SeasonProvider({ children }: { children: React.ReactNode }) {
   const [season, setSeason] = useState<SeasonData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(
+    store.getStatus?.() ?? { state: "local", pending: 0 },
+  );
   const loaded = useRef(false);
 
   useEffect(() => {
     let active = true;
+    const unsubs: Array<() => void> = [];
     store.load().then((data) => {
       if (!active) return;
       const base = data ?? seedSeason();
@@ -64,9 +87,19 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
       loaded.current = true;
       // Persist immediately so a one-time migration survives the next reload.
       if (migrated !== base) void store.save(migrated);
+      // Realtime updates from other devices flow straight into state.
+      if (store.subscribe) {
+        unsubs.push(
+          store.subscribe((remote) => {
+            if (active) setSeason(migrateSeason(remote));
+          }),
+        );
+      }
     });
+    if (store.onStatus) unsubs.push(store.onStatus(setSyncStatus));
     return () => {
       active = false;
+      unsubs.forEach((u) => u());
     };
   }, []);
 
@@ -204,10 +237,72 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
     [mutate],
   );
 
+  const addPhoto = useCallback(
+    async ({ roundId, hole, playerId, file }: AddPhotoInput) => {
+      const client = getSupabaseClient();
+      const familyId = season?.familyId;
+      if (!client || !familyId) return; // photos require a configured backend
+      const { storagePath, url } = await uploadPhoto(
+        client,
+        familyId,
+        roundId,
+        file,
+      );
+      const photo: Photo = {
+        id: newId(),
+        roundId,
+        hole,
+        playerId,
+        storagePath,
+        url,
+        createdAt: new Date().toISOString(),
+      };
+      mutate((prev) => ({ ...prev, photos: [...prev.photos, photo] }));
+    },
+    [season, mutate],
+  );
+
+  const updatePhotoCaption = useCallback(
+    (photoId: string, caption: string) => {
+      mutate((prev) => ({
+        ...prev,
+        photos: prev.photos.map((p) =>
+          p.id === photoId ? { ...p, caption } : p,
+        ),
+      }));
+    },
+    [mutate],
+  );
+
+  const deletePhoto = useCallback(
+    (photoId: string) => {
+      mutate((prev) => ({
+        ...prev,
+        photos: prev.photos.filter((p) => p.id !== photoId),
+      }));
+    },
+    [mutate],
+  );
+
+  const pendingOps = useCallback(() => store.pendingOps?.() ?? [], []);
+
+  const uploadLocalToCloud = useCallback(async () => {
+    if (!season || !store.bootstrap) return;
+    await store.bootstrap(season);
+    const reloaded = await store.load();
+    if (reloaded) setSeason(migrateSeason(reloaded));
+  }, [season]);
+
   const value = useMemo<SeasonContextValue>(
     () => ({
       season,
       loading,
+      syncStatus,
+      pendingOps,
+      uploadLocalToCloud,
+      addPhoto,
+      updatePhotoCaption,
+      deletePhoto,
       updatePlayerHandicap,
       updateHolePar,
       loadEllaSharpPars,
@@ -222,6 +317,12 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
     [
       season,
       loading,
+      syncStatus,
+      pendingOps,
+      uploadLocalToCloud,
+      addPhoto,
+      updatePhotoCaption,
+      deletePhoto,
       updatePlayerHandicap,
       updateHolePar,
       loadEllaSharpPars,

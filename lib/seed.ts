@@ -83,6 +83,7 @@ export function seedSeason(): SeasonData {
     holes: seedHoles(),
     rounds: [],
     handicapChanges: [],
+    photos: [],
     activeRoundId: null,
   };
 }

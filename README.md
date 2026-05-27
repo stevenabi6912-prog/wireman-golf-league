@@ -38,6 +38,18 @@ All of the above is covered by unit tests in `lib/*.test.ts`.
 
 Settings → Export/Import JSON backs up and restores the entire season.
 
+## Multi-phone sync & photos (optional)
+
+The app runs single-device on `localStorage` out of the box. To sync across
+phones and attach photos, wire up a Supabase backend — see
+[`SETUP.md`](SETUP.md). Until the env secrets are configured the app stays in
+local-only mode (no auth, no network), so deploys are safe before setup.
+
+- Storage layer: `lib/storage/` — `LocalStorageStore` (cache), `SupabaseStore`
+  (cloud), and `SyncStore` (offline-first composer with a persisted sync queue
+  and realtime pull). `season-context.tsx` uses `SyncStore`.
+- Schema: `supabase/migrations/001_initial.sql`.
+
 ## Deploy to Vercel
 
 1. Push this repo to GitHub.

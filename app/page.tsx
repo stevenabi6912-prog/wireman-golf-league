@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Loading } from "@/components/ui";
+import CloudUploadPrompt from "@/components/CloudUploadPrompt";
 import { useSeason } from "@/lib/season-context";
 import { isHandicapReviewRound } from "@/lib/scoring";
 import {
@@ -45,6 +46,8 @@ export default function Dashboard() {
           Golf League
         </h1>
       </header>
+
+      <CloudUploadPrompt />
 
       {activeRound && (
         <Link href="/round/active" className="card mb-4 block" style={{ borderColor: "var(--gold)" }}>
