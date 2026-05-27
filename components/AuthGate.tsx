@@ -5,8 +5,8 @@ import { useAuth } from "@/lib/auth";
 import { Loading } from "@/components/ui";
 
 /**
- * When Supabase is configured, requires a magic-link session before showing the
- * app. In local-only mode (no backend configured) it renders children directly.
+ * When Supabase is configured, requires an email + password session before
+ * showing the app. In local-only mode (no backend) it renders children.
  */
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { configured, ready, session } = useAuth();
@@ -18,21 +18,25 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function SignIn() {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState("wireman.golf@gmail.com");
-  const [sent, setSent] = useState(false);
+  const { signIn, signUp } = useAuth();
+  const [mode, setMode] = useState<"signin" | "create">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const canSubmit = email.trim().length > 0 && password.length >= 6;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
-    const { error: err } = await signIn(email.trim());
+    const fn = mode === "create" ? signUp : signIn;
+    const { error: err } = await fn(email, password);
     setBusy(false);
     if (err) setError(err);
-    else setSent(true);
+    // On success the auth listener flips `session` and the gate opens.
   }
 
   return (
@@ -40,51 +44,63 @@ function SignIn() {
       <h1 className="text-3xl font-extrabold" style={{ color: "var(--forest)" }}>
         Wireman Golf League
       </h1>
-      <p className="mt-1 text-muted">Sign in to sync across phones.</p>
+      <p className="mt-1 text-muted">
+        {mode === "create"
+          ? "Create the shared family login."
+          : "Sign in to sync across phones."}
+      </p>
 
-      {sent ? (
-        <div className="card mt-6">
-          <p className="font-bold" style={{ color: "var(--gold)" }}>
-            Check your email
+      <form onSubmit={submit} className="card mt-6 space-y-3">
+        <input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="surface w-full rounded-xl border px-4 py-3 text-base"
+          style={{ borderColor: "var(--border)" }}
+        />
+        <input
+          type="password"
+          autoComplete={mode === "create" ? "new-password" : "current-password"}
+          placeholder="Password (min 6 characters)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="surface w-full rounded-xl border px-4 py-3 text-base"
+          style={{ borderColor: "var(--border)" }}
+        />
+        {error && (
+          <p className="text-sm" style={{ color: "#b91c1c" }}>
+            {error}
           </p>
-          <p className="mt-1 text-sm text-muted">
-            We sent a magic link to <strong>{email}</strong>. Open it on this
-            device to finish signing in.
-          </p>
-          <button
-            className="btn btn-outline mt-4 w-full py-3"
-            onClick={() => setSent(false)}
-          >
-            Use a different email
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={submit} className="card mt-6 space-y-3">
-          <input
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="wireman.golf@gmail.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="surface w-full rounded-xl border px-4 py-3 text-base"
-            style={{ borderColor: "var(--border)" }}
-          />
-          {error && (
-            <p className="text-sm" style={{ color: "#b91c1c" }}>
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={busy || !email.trim()}
-            className="btn btn-primary w-full py-3"
-            style={busy || !email.trim() ? { opacity: 0.5 } : undefined}
-          >
-            {busy ? "Sending…" : "Send magic link"}
-          </button>
-        </form>
-      )}
+        )}
+        <button
+          type="submit"
+          disabled={busy || !canSubmit}
+          className="btn btn-primary w-full py-3"
+          style={busy || !canSubmit ? { opacity: 0.5 } : undefined}
+        >
+          {busy
+            ? "Please wait…"
+            : mode === "create"
+              ? "Create account"
+              : "Sign in"}
+        </button>
+      </form>
+
+      <button
+        className="mt-4 text-sm font-semibold"
+        style={{ color: "var(--navy)" }}
+        onClick={() => {
+          setMode((m) => (m === "create" ? "signin" : "create"));
+          setError(null);
+        }}
+      >
+        {mode === "create"
+          ? "Already set up? Sign in"
+          : "First time? Create the family account"}
+      </button>
     </div>
   );
 }
