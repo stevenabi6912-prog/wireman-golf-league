@@ -8,6 +8,10 @@ changes the existing single-device behavior until the env secrets are present.
 
 - In your Supabase org, create a new project (region: `us-east-2` is closest to Michigan).
 - Grab the project's **URL** and **anon/public key** from Project Settings → API.
+  - Use the bare **Project URL** — `https://<ref>.supabase.co` with **no trailing
+    slash and no path**. Do NOT use the "RESTful endpoint" value (`…/rest/v1/`);
+    the client appends its own paths, so an extra `/rest/v1/` causes
+    "Invalid path specified in request URL" errors at sign-in.
 
 ## 2. Run the schema migration
 
