@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAchievements,
+  getAllAchievements,
   getBiggestMover,
   getBirdiesAndEagles,
   getHoleOfRound,
@@ -8,8 +9,8 @@ import {
   getRoundMvp,
   getStandingsMovement,
 } from "./insights";
-import { seedPlayers } from "./seed";
-import type { Player, Round } from "./types";
+import { seedPlayers, seedSeason } from "./seed";
+import type { Player, Round, SeasonData } from "./types";
 
 const PLAYERS: Player[] = seedPlayers();
 const only = (...ids: string[]) => PLAYERS.filter((p) => ids.includes(p.id));
@@ -251,5 +252,98 @@ describe("getPatternFlags", () => {
     const flags = getPatternFlags(only(...ids), rounds, 5);
     expect(flags).toHaveLength(4);
     expect(flags.every((f) => f.type === "cold-streak")).toBe(true);
+  });
+});
+
+describe("new achievement types", () => {
+  it("fires a hole-in-one on an ace", () => {
+    const r = mkRoundStrokes(1, [
+      { id: "dad", strokes: [1, 4, 4, 4, 4, 4, 4, 4, 4] },
+    ]);
+    const types = getAchievements(r, PLAYERS, [r]).map((a) => a.type);
+    expect(types).toContain("hole-in-one");
+  });
+
+  it("fires first par and three-in-a-row on a clean round", () => {
+    const r = mkRoundStrokes(1, [{ id: "dad", strokes: Array(9).fill(4) }]);
+    const types = getAchievements(r, PLAYERS, [r]).map((a) => a.type);
+    expect(types).toContain("first-par");
+    expect(types).toContain("three-in-a-row");
+  });
+
+  it("awards a sweep to the round winner", () => {
+    const r = mkRound(1, [
+      { id: "dad", points: 30 },
+      { id: "mom", points: 18 },
+    ]);
+    const ach = getAchievements(r, PLAYERS, [r]);
+    expect(ach.some((a) => a.player.id === "dad" && a.type === "sweep")).toBe(
+      true,
+    );
+    expect(ach.some((a) => a.player.id === "mom" && a.type === "sweep")).toBe(
+      false,
+    );
+  });
+
+  it("awards a comeback for climbing 3+ spots from round 3", () => {
+    const ids = ["dad", "mom", "luke", "layla"];
+    const r1 = mkRound(
+      1,
+      ids.map((id) => ({ id, points: id === "dad" ? 5 : 8 })),
+    );
+    const r2 = mkRound(
+      2,
+      ids.map((id) => ({ id, points: id === "dad" ? 5 : 8 })),
+    );
+    const r3 = mkRound(
+      3,
+      ids.map((id) => ({ id, points: id === "dad" ? 36 : 0 })),
+    );
+    const ach = getAchievements(r3, only(...ids), [r1, r2, r3]);
+    expect(
+      ach.some((a) => a.player.id === "dad" && a.type === "comeback"),
+    ).toBe(true);
+  });
+});
+
+describe("getAllAchievements", () => {
+  function seasonWith(rounds: Round[]): SeasonData {
+    return { ...seedSeason(), players: PLAYERS, rounds };
+  }
+
+  it("returns achievements in chronological round order", () => {
+    const r1 = mkRoundStrokes(1, [
+      { id: "dad", strokes: [3, 4, 4, 4, 4, 4, 4, 4, 4] },
+    ]);
+    const r2 = mkRoundStrokes(2, [
+      { id: "dad", strokes: [2, 4, 4, 4, 4, 4, 4, 4, 4] },
+    ]);
+    const all = getAllAchievements(seasonWith([r1, r2]));
+    expect(all.length).toBeGreaterThan(0);
+    const rounds = all.map((a) => a.roundNumber);
+    expect(rounds).toEqual([...rounds].sort((a, b) => a - b));
+    expect(rounds[0]).toBe(1);
+  });
+
+  it("returns nothing for a player with no achievements", () => {
+    const r = mkRoundStrokes(1, [
+      { id: "dad", strokes: Array(9).fill(5) }, // all bogeys: nothing earned
+      { id: "mom", strokes: Array(9).fill(4) }, // all pars: several badges
+    ]);
+    const all = getAllAchievements(seasonWith([r]));
+    expect(all.filter((a) => a.player.id === "dad")).toEqual([]);
+    expect(all.filter((a) => a.player.id === "mom").length).toBeGreaterThan(0);
+  });
+
+  it("family total equals the sum of per-player counts", () => {
+    const r1 = mkRound(1, [
+      { id: "dad", points: 27 },
+      { id: "mom", points: 18 },
+    ]);
+    const all = getAllAchievements(seasonWith([r1]));
+    const perPlayer = PLAYERS.map(
+      (p) => all.filter((a) => a.player.id === p.id).length,
+    ).reduce((s, n) => s + n, 0);
+    expect(perPlayer).toBe(all.length);
   });
 });
