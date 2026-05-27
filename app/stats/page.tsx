@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loading, PageHeader } from "@/components/ui";
 import { useSeason } from "@/lib/season-context";
 import { mostImproved, playerStats } from "@/lib/stats";
 
-export default function StatsPage() {
+function StatsContent() {
+  const params = useSearchParams();
   const { season, loading } = useSeason();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(
+    params.get("player"),
+  );
 
   if (loading || !season) return <Loading />;
 
-  const playerId = selected ?? season.players[0]?.id;
+  const requested = selected ?? season.players[0]?.id;
+  const playerId = season.players.some((p) => p.id === requested)
+    ? requested
+    : season.players[0]?.id;
   const stats = playerStats(season, playerId);
   const improved = mostImproved(season);
 
@@ -129,8 +136,8 @@ function HandicapChart({
   if (history.length < 2) {
     return (
       <p className="text-sm text-muted">
-        No handicap changes yet. Adjustments are reviewed after rounds 3, 6, and
-        9.
+        No handicap changes yet. Adjustments are reviewed after rounds 1, 2, 3,
+        6, and 9.
       </p>
     );
   }
@@ -171,5 +178,13 @@ function HandicapChart({
         </g>
       ))}
     </svg>
+  );
+}
+
+export default function StatsPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <StatsContent />
+    </Suspense>
   );
 }
