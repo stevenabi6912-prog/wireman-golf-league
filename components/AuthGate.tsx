@@ -19,7 +19,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
 function SignIn() {
   const { signIn } = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("wireman.golf@gmail.com");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
